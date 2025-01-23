@@ -1,0 +1,87 @@
+#VRML_SIM R2023b utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/Parquetry.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/tables/protos/Table.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/factory/containers/protos/WoodenBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/robots/kuka/youbot/protos/KukaBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/kitchen/breakfast/protos/BiscuitBox.proto"
+
+WorldInfo {
+}
+Viewpoint {
+  orientation -0.5499030846515254 0.5505911147454426 0.6280573396228311 2.0188814751839295
+  position 0.05729950003323783 0.08901648158427733 3.696048765746891
+  follow "table"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+Floor {
+  appearance Parquetry {
+    type "light strip"
+  }
+}
+Robot {
+  rotation 0 0 1 1.5708
+  children [
+    Camera {
+      translation 0 0 2.04
+      rotation 0 1 0 1.5708003061004252
+      fieldOfView 1.204
+      width 1280
+      height 720
+    }
+  ]
+  name "camera_robot"
+  controller "image_capture"
+}
+Table {
+  size 1.6 0.8 0.74
+}
+Robot {
+  translation 0.47979655204860916 0.19750533895421096 0.77
+  children [
+    GPS {
+    }
+    WoodenBox {
+      translation 0 0 0
+      size 0.2 0.2 0.06
+    }
+  ]
+  name "wooden_box_robot"
+  controller "wooden_box"
+  supervisor TRUE
+}
+Robot {
+  translation 0.24432769601771887 0.11527353689301412 0.74
+  children [
+    BiscuitBox {
+      hidden linearVelocity_0 0 0 -3.92350956130727e-05
+      translation 0 0 -1.255523059628949e-06
+    }
+    GPS {
+    }
+  ]
+  name "biscuit_box_robot"
+  controller "biscuit_box"
+  supervisor TRUE
+}
+Robot {
+  translation 0.5570563387287826 -0.17210191598198488 0.74
+  children [
+    KukaBox {
+      hidden linearVelocity_0 0 0 -0.0005288475697260831
+      translation 0 0 -1.692312223122716e-05
+      size 0.1 0.2 0.1
+    }
+    GPS {
+    }
+  ]
+  name "kuka_box_robot"
+  controller "kuka_box"
+  supervisor TRUE
+}
