@@ -12,8 +12,8 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/project
 WorldInfo {
 }
 Viewpoint {
-  orientation -0.5499030846515254 0.5505911147454426 0.6280573396228311 2.0188814751839295
-  position 0.05729950003323783 0.08901648158427733 3.696048765746891
+  orientation 0.009374862578794947 -0.00014063348635169818 0.9999560451209101 3.1115939720383756
+  position 1.7465944126197905 0.03262017038215924 0.8572645455510534
   follow "table"
 }
 TexturedBackground {
@@ -43,7 +43,7 @@ Table {
   size 1.6 0.8 0.74
 }
 Robot {
-  translation 0.47979655204860916 0.19750533895421096 0.77
+  translation 0.479797 0.197505 0.77
   children [
     GPS {
     }
@@ -57,10 +57,9 @@ Robot {
   supervisor TRUE
 }
 Robot {
-  translation 0.24432769601771887 0.11527353689301412 0.74
+  translation 0.244328 0.115274 0.74
   children [
     BiscuitBox {
-      hidden linearVelocity_0 0 0 -3.92350956130727e-05
       translation 0 0 -1.255523059628949e-06
     }
     GPS {
@@ -71,12 +70,11 @@ Robot {
   supervisor TRUE
 }
 Robot {
-  translation 0.5570563387287826 -0.17210191598198488 0.74
+  translation 0.557056 -0.172102 0.77
   children [
     KukaBox {
-      hidden linearVelocity_0 0 0 -0.0005288475697260831
-      translation 0 0 -1.692312223122716e-05
-      size 0.1 0.2 0.1
+      translation 0 0 -1.692e-05
+      size 0.1 0.2 0.06
     }
     GPS {
     }

@@ -11,12 +11,12 @@ GPS = GPS('gps')
 timestep = int(robot.getBasicTimeStep())
 
 # Get the wooden box node
-wooden_box = robot.getSelf()
+biscuit_box_robot = robot.getSelf()
 
 # Initialize position variables
-x = 0.0
-y = 0.0
-z = 0.74  # Fixed z position
+x = biscuit_box_robot.getField('translation').getSFVec3f()[0]
+y = biscuit_box_robot.getField('translation').getSFVec3f()[1]
+z = biscuit_box_robot.getField('translation').getSFVec3f()[2]
 rotation_angle = 0
 
 # Table dimensions
@@ -46,6 +46,6 @@ while robot.step(timestep) != -1:
     rotation_angle = random.uniform(0, 2 * math.pi)
     
     # Set new position and rotation
-    wooden_box.getField('translation').setSFVec3f([x, y, z])
-    wooden_box.getField('rotation').setSFRotation([0, 0, 1, rotation_angle])
+    biscuit_box_robot.getField('translation').setSFVec3f([x, y, z])
+    biscuit_box_robot.getField('rotation').setSFRotation([0, 0, 1, rotation_angle])
 
