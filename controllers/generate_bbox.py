@@ -131,6 +131,67 @@ def compute_points_relative_to_image_single(image_corners, points_corners):
     return return_points
 
 
+def compute_bounding_box(top_polygon, bottom_polygon):
+    """
+    Compute the bounding box of the object
+    Args:
+        top_polygon: List of numpy arrays containing the top polygon vertices
+        bottom_polygon: List of numpy arrays containing the bottom polygon vertices
+    """
+    top_polygon = np.array(top_polygon)
+    bottom_polygon = np.array(bottom_polygon)
+    # print("Top polygon: ", top_polygon)
+    # print("Bottom polygon: ", bottom_polygon)
+    # print("Top polygon shape: ", top_polygon.shape)
+    # print("Bottom polygon shape: ", bottom_polygon.shape)
+    x_min_top, y_min_top, _ = np.min(top_polygon, axis=0)
+    x_max_top, y_max_top, _ = np.max(top_polygon, axis=0)
+    x_min_bottom, y_min_bottom, _ = np.min(bottom_polygon, axis=0)
+    x_max_bottom, y_max_bottom, _ = np.max(bottom_polygon, axis=0)
+    # print("x_min_top: ", x_min_top)
+    # print("y_min_top: ", y_min_top)
+    # print("x_max_top: ", x_max_top)
+    # print("y_max_top: ", y_max_top)
+    # print("x_min_bottom: ", x_min_bottom)
+    # print("y_min_bottom: ", y_min_bottom)
+    # print("x_max_bottom: ", x_max_bottom)
+    # print("y_max_bottom: ", y_max_bottom)
+
+    x_min = min(x_min_top, x_min_bottom)
+    y_min = min(y_min_top, y_min_bottom)
+    x_max = max(x_max_top, x_max_bottom)
+    y_max = max(y_max_top, y_max_bottom)
+
+    return x_min, y_min, x_max, y_max
+
+def plot_bbox_over_image(x_min, y_min, x_max, y_max, image):
+    """
+    Plot the bounding box over the image
+    Args:
+        x_min: Minimum x coordinate of the bounding box
+        y_min: Minimum y coordinate of the bounding box
+        x_max: Maximum x coordinate of the bounding box
+        y_max: Maximum y coordinate of the bounding box
+        image: Image to plot the bounding box over
+    """
+    plt.figure(figsize=(10, 10))
+    plt.imshow(image)
+    # Make the coordinates relative to the image size
+    x_min = x_min * image.shape[1]
+    x_max = x_max * image.shape[1]
+    y_min = y_min * image.shape[0]
+    y_max = y_max * image.shape[0]
+    plt.plot([x_min, x_max], [y_min, y_min], "r")
+    plt.plot([x_min, x_max], [y_max, y_max], "r")
+    plt.plot([x_min, x_min], [y_min, y_max], "r")
+    plt.plot([x_max, x_max], [y_min, y_max], "r")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.title("Bounding Box Visualization")
+    plt.grid(True)
+    plt.axis("equal")
+    plt.show()
+
 def main():
     # Load the .npy files
     kuka_box_polygon = np.load("kuka_box/corners.npy")
@@ -180,6 +241,10 @@ def main():
                     top_face_viewable_area, polygons[j]
                 )
                 plot_polygon_over_image(top_polygons_relative_to_image, image)
+                x_min, y_min, x_max, y_max = compute_bounding_box(
+                    top_polygons_relative_to_image, bottom_polygons_relative_to_image
+                )
+                plot_bbox_over_image(x_min, y_min, x_max, y_max, image)
 
 
 if __name__ == "__main__":
