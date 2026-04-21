@@ -1,25 +1,12 @@
 {
     "name": "webots-dev",
-    "build": {
-        "dockerfile": "Dockerfile",
-        "context": ".."
-    },
-    "runArgs": [
-        "--privileged",
-        "--device=/dev/ttyUSB0",
-        "--gpus=all",
-        "--ipc=host",
-        "--shm-size=4g",
-        "--ulimit=memlock=-1",
-        "--net=host",
-        "-e", "DISPLAY=${localEnv:DISPLAY}",
-        "-u", "${localEnv:UID}:${localEnv:GID}",
-        "-v", "/tmp/.X11-unix:/tmp/.X11-unix",
-        "--rm"
-    ],
-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "dockerComposeFile": "compose.yaml",
+    "service": "webots-dev",
+    "remoteUser": "user",
     "workspaceFolder": "/workspace",
-    "remoteUser": "root",
+    "containerEnv": {
+        "SHELL": "/bin/bash"
+    },
     "customizations": {
         "vscode": {
             "extensions": [
@@ -32,7 +19,8 @@
                 "ms-python.python",
                 "ms-python.vscode-pylance",
                 "yzhang.markdown-all-in-one"
-            ]
+            ],
+            "extensions.verifySignature": false
         }
-  }
+    }
 }

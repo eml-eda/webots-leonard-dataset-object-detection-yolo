@@ -15,8 +15,19 @@ FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# UV
+COPY --from=ghcr.io/astral-sh/uv:0.7.0 /uv /uvx /bin/
+ENV UV_COMPILE_BYTECODE=1 UV_SYSTEM_PYTHON=1
+
 # Install Webots runtime dependencies
-RUN apt-get update && apt-get install --yes wget xvfb locales python3 python3-argcomplete python3-pip && rm -rf /var/lib/apt/lists/ && \
+RUN apt-get update && apt-get install -y --no-install-recommends \ 
+  wget \
+  xvfb \
+  locales \
+  python3 \
+  python3-argcomplete \
+  python3-pip && \
+  rm /usr/lib/python*/EXTERNALLY-MANAGED && \
   wget https://raw.githubusercontent.com/cyberbotics/webots/master/scripts/install/linux_runtime_dependencies.sh && \
   chmod +x linux_runtime_dependencies.sh && ./linux_runtime_dependencies.sh && rm ./linux_runtime_dependencies.sh && rm -rf /var/lib/apt/lists/
 
@@ -37,14 +48,31 @@ ENV USER=root
 RUN locale-gen en_US.UTF-8
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
-# Copy requirements.txt
-COPY requirements.txt /requirements.txt
+# Install python dependencies
+WORKDIR /var/local
+COPY requirements_dev.txt /var/local/requirements_dev.txt
+COPY requirements.txt /var/local/requirements.txt
+RUN uv pip install -r requirements_dev.txt -r requirements.txt
 
-# Install Python dependencies
-RUN pip install -r /requirements.txt --break-system-packages
+ARG USERNAME=user
+ARG UID=1000
+ARG GID=1000
 
-# Set the working directory
+# Rename the user
+RUN usermod -l ${USERNAME} -d /home/${USERNAME} -m ubuntu
+
+# Create workspace
 WORKDIR /workspace
+RUN chown -R ${UID}:${GID} /home/${USERNAME} &&\
+        chown -R ${UID}:${GID} /workspace
 
-# Finally open a bash command to let the user interact
-CMD ["/bin/bash"]
+# Ensure XDG dirs exist and are writable before volume mounts.
+RUN mkdir -p /home/${USERNAME}/.config/Cyberbotics \
+  /home/${USERNAME}/.cache/Cyberbotics \
+  /home/${USERNAME}/.local/share/Cyberbotics \
+  /home/${USERNAME}/.local/share/applications && \
+    chown -R ${UID}:${GID} /home/${USERNAME}/.config \
+  /home/${USERNAME}/.cache \
+  /home/${USERNAME}/.local
+
+USER $USERNAME
