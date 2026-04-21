@@ -1,0 +1,50 @@
+ARG BASE_IMAGE=nvidia/cuda:12.6.0-base-ubuntu24.04
+FROM ${BASE_IMAGE} AS downloader
+
+# Determine Webots version to be used and set default argument
+ARG WEBOTS_VERSION=R2023b
+ARG WEBOTS_PACKAGE_PREFIX=
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install --yes wget bzip2 && rm -rf /var/lib/apt/lists/ && \
+ wget https://github.com/cyberbotics/webots/releases/download/$WEBOTS_VERSION/webots-$WEBOTS_VERSION-x86-64$WEBOTS_PACKAGE_PREFIX.tar.bz2 && \
+ tar xjf webots-*.tar.bz2 && rm webots-*.tar.bz2
+
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Webots runtime dependencies
+RUN apt-get update && apt-get install --yes wget xvfb locales python3 python3-argcomplete python3-pip && rm -rf /var/lib/apt/lists/ && \
+  wget https://raw.githubusercontent.com/cyberbotics/webots/master/scripts/install/linux_runtime_dependencies.sh && \
+  chmod +x linux_runtime_dependencies.sh && ./linux_runtime_dependencies.sh && rm ./linux_runtime_dependencies.sh && rm -rf /var/lib/apt/lists/
+
+# Install Webots
+WORKDIR /usr/local
+COPY --from=downloader /webots /usr/local/webots/
+ENV QTWEBENGINE_DISABLE_SANDBOX=1
+ENV WEBOTS_HOME=/usr/local/webots
+ENV PATH=/usr/local/webots:${PATH}
+
+# Enable OpenGL capabilities
+ENV NVIDIA_DRIVER_CAPABILITIES=graphics,compute,utility
+
+# Set a user name to fix a warning
+ENV USER=root
+
+# Set the locales
+RUN locale-gen en_US.UTF-8
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
+
+# Copy requirements.txt
+COPY requirements.txt /requirements.txt
+
+# Install Python dependencies
+RUN pip install -r /requirements.txt --break-system-packages
+
+# Set the working directory
+WORKDIR /workspace
+
+# Finally open a bash command to let the user interact
+CMD ["/bin/bash"]
