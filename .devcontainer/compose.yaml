@@ -3,6 +3,8 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
+    env_file:
+      - .env
     privileged: true
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
