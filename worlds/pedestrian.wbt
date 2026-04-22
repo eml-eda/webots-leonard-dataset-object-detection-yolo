@@ -39,13 +39,16 @@ CircleArena {
 }
 Pedestrian {
   translation 4 -3 1.26
+  controller "pedestrian_stop"
   controllerArgs [
     "--trajectory= 4 -3, 4 3"
     "--speed=1"
+    "--max-distance=6.0"
+    "--start-on-takeoff"
   ]
 }
 
-Robot {
+DEF CRAZYFLIE Robot {
   translation 0 0 0.015
   children [
     DEF BODY Pose {
