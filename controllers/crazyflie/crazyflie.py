@@ -23,8 +23,8 @@ import numpy as np
 from controller import (
     GPS,
     Camera,
-    DistanceSensor,
     Display,
+    DistanceSensor,
     Gyro,
     InertialUnit,
     Keyboard,
@@ -98,12 +98,23 @@ if __name__ == '__main__':
 
     robot = Robot()
     timestep = int(robot.getBasicTimeStep())
+
+    # Camera and vision update rates can be tuned via environment variables.
+    camera_period_ms = max(
+        timestep,
+        int(os.getenv('CF_CAMERA_PERIOD_MS', str(timestep)))
+    )
+    # image_process_interval = max(
+    #     0.0,
+    #     float(os.getenv('CF_IMAGE_PROCESS_INTERVAL', '0.1'))
+    # )
         
     # Initialize the image index
     image_index = 0
     # Initialize variables for timing
     last_save_time = 0  # Time when the last image was saved
     save_interval = 0.25  # Time interval in seconds between saved images
+    desired_yaw_rate_cmd = 0.0
 
     ## Initialize motors
     m1_motor = robot.getDevice("m1_motor")
@@ -127,7 +138,7 @@ if __name__ == '__main__':
     gyro = robot.getDevice("gyro")
     gyro.enable(timestep)
     camera = robot.getDevice("camera")
-    camera.enable(timestep)
+    camera.enable(camera_period_ms)
     display = robot.getDevice("display")
     range_front = robot.getDevice("range_front")
     range_front.enable(timestep)
@@ -200,7 +211,7 @@ if __name__ == '__main__':
         desired_state = [0, 0, 0, 0]
         forward_desired = 0
         sideways_desired = 0
-        desired_yaw_rate = 0
+        desired_yaw_rate = desired_yaw_rate_cmd
         height_diff_desired = 0
 
 
@@ -209,7 +220,8 @@ if __name__ == '__main__':
             # print(f"Taking off to {height_desired} m")
         else:           
             takeoff_done = True
-            
+
+            # # Run camera rendering and YOLO at a lower, configurable rate.
             # Capture camera image
             raw_image = camera.getImage()
             display_image = display.imageNew(raw_image, Display.BGRA, camera_width, camera_height)
@@ -236,16 +248,17 @@ if __name__ == '__main__':
                 # Compute desired yaw rate using a proportional controller.
                 # (Adjust Kp_yaw as necessary for smooth behavior.)
                 Kp_yaw = 0.005
-                desired_yaw_rate = Kp_yaw * error_x
+                desired_yaw_rate_cmd = Kp_yaw * error_x
 
                 # (Optional) Save the annotated output image.
                 if current_time - last_save_time >= save_interval:
                     cv2.imwrite("detected_output.png", detected_image)
                     last_save_time = current_time
             else:
-                # If no object is detected, you can keep desired_yaw_rate at 0
-                # or use the previous value if you want to hold the last heading.
-                desired_yaw_rate = 0
+                # If no object is detected, command zero yaw until a new detection arrives.
+                desired_yaw_rate_cmd = 0
+
+            desired_yaw_rate = desired_yaw_rate_cmd
         
         ## PID velocity controller with fixed height
         motor_power = PID_CF.pid(dt, forward_desired, sideways_desired,
