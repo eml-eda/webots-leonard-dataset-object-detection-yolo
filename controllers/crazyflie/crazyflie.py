@@ -24,6 +24,7 @@ from controller import (
     GPS,
     Camera,
     DistanceSensor,
+    Display,
     Gyro,
     InertialUnit,
     Keyboard,
@@ -64,7 +65,7 @@ def detect_objects(image):
     results = model.predict(source=image, verbose=False)
     return results
 
-def draw_detections(image, results):
+def draw_detections(image, results, display=None):
     """Draw bounding boxes on detected objects."""
     for detection in results[0].boxes:
         # Get bounding box coordinates
@@ -79,11 +80,16 @@ def draw_detections(image, results):
         label = f"{model.names[cls]} {conf:.2f}"
         cv2.putText(image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
+        if display is not None:
+            display.setColor(0x00FF00)
+            display.drawRectangle(x1, y1, x2 - x1, y2 - y1)
+            display.drawText(label, x1, max(0, y1 - 12))
+
     return image
 
 
 def save_camera_image(camera, folder, index):
-    image = camera.getImage()
+    # image = camera.getImage()
     file_name = f'image_{str(index).zfill(3)}.png'  # Format the index as a three-digit number
     camera.saveImage(os.path.join(folder, file_name), 100)
     print(f"{file_name} saved")
@@ -122,6 +128,7 @@ if __name__ == '__main__':
     gyro.enable(timestep)
     camera = robot.getDevice("camera")
     camera.enable(timestep)
+    display = robot.getDevice("display")
     range_front = robot.getDevice("range_front")
     range_front.enable(timestep)
     range_left = robot.getDevice("range_left")
@@ -154,14 +161,14 @@ if __name__ == '__main__':
     takeoff_tolerance = 0.005
     takeoff_done = False
 
-    print("\n");
+    print("\n")
 
-    print("====== Controls =======\n\n");
+    print("====== Controls =======\n\n")
 
-    print(" The Crazyflie can be controlled from your keyboard!\n");
-    print(" All controllable movement is in body coordinates\n");
-    print("- Use the up, back, right and left button to move in the horizontal plane\n");
-    print("- Use Q and E to rotate around yaw ");
+    print(" The Crazyflie can be controlled from your keyboard!\n")
+    print(" All controllable movement is in body coordinates\n")
+    print("- Use the up, back, right and left button to move in the horizontal plane\n")
+    print("- Use Q and E to rotate around yaw ")
     print("- Use W and S to go up and down\n ")
 
     print("\n====== Crazyflie Drone with YOLOv5 Detection ======\n")
@@ -205,11 +212,15 @@ if __name__ == '__main__':
             
             # Capture camera image
             raw_image = camera.getImage()
+            display_image = display.imageNew(raw_image, Display.BGRA, camera_width, camera_height)
+            display.imagePaste(display_image, 0, 0, False)
+            display.imageDelete(display_image)
             image = np.frombuffer(raw_image, dtype=np.uint8).reshape((camera_height, camera_width, 4))
             image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)  # Convert Webots image format to OpenCV BGR
 
             # Run object detection
             results = detect_objects(image)
+            detected_image = draw_detections(image.copy(), results, display)
 
             # If at least one detection is available, compute the yaw error.
             if results and len(results[0].boxes) > 0:
@@ -227,9 +238,8 @@ if __name__ == '__main__':
                 Kp_yaw = 0.005
                 desired_yaw_rate = Kp_yaw * error_x
 
-                # (Optional) Draw the detection and save the output image.
+                # (Optional) Save the annotated output image.
                 if current_time - last_save_time >= save_interval:
-                    detected_image = draw_detections(image.copy(), results)
                     cv2.imwrite("detected_output.png", detected_image)
                     last_save_time = current_time
             else:

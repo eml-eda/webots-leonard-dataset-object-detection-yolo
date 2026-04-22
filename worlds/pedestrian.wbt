@@ -97,8 +97,14 @@ Robot {
       ]
     }
     Camera {
+      name "camera"
       translation 0.03 0 0.01
       fieldOfView 0.87
+      width 324
+      height 324
+    }
+    Display {
+      name "display"
       width 324
       height 324
     }
