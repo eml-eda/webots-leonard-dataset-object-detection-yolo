@@ -30,6 +30,7 @@ Panda {
   translation -2.57124e-07 -0.24 0.74
   rotation 0 0 1 1.5708
   controller "panda"
+  supervisor TRUE
 }
 Robot {
   rotation 0 0 1 1.5708
@@ -43,6 +44,7 @@ Robot {
     }
   ]
   name "camera_robot"
+  controller "image_capture"
 }
 Table {
   size 1.6 0.8 0.74
