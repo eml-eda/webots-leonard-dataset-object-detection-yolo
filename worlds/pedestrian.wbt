@@ -22,7 +22,7 @@ WorldInfo {
 }
 Viewpoint {
   orientation 0.15931 0.968621 0.190773 0.189408
-  position -5.17305 -0.278976 2.00466
+  position -10.0 -0.278976 2.00466
   follow "Crazyflie"
 }
 TexturedBackground {
@@ -39,13 +39,6 @@ CircleArena {
 }
 Pedestrian {
   translation 4 -3 1.26
-  controller "pedestrian_stop"
-  controllerArgs [
-    "--trajectory= 4 -3, 4 3"
-    "--speed=1"
-    "--max-distance=6.0"
-    "--start-on-takeoff"
-  ]
 }
 
 DEF CRAZYFLIE Robot {

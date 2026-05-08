@@ -1,5 +1,5 @@
 services:
-  webots-dev:
+  webots-simulator:
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -28,7 +28,22 @@ services:
       - ${HOME}/.config/pulse/cookie:/home/user/.config/pulse/cookie:ro
     user: "${UID:-1000}:${GID:-1000}"
     stdin_open: true
-    command: /bin/bash
+    command: webots --mode=realtime --stdout --stderr /workspace/worlds/pedestrian.wbt
+
+  yolo-inference:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    env_file:
+      - .env
+    gpus: all
+    ipc: host
+    shm_size: 4g
+    network_mode: host
+    volumes:
+      - ..:/workspace
+    user: "${UID:-1000}:${GID:-1000}"
+    command: python3 /workspace/services/yolo_inference_server.py
 
 volumes:
   webots-config:
