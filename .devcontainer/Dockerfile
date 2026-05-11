@@ -52,7 +52,7 @@ ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 WORKDIR /var/local
 COPY requirements_dev.txt /var/local/requirements_dev.txt
 COPY requirements.txt /var/local/requirements.txt
-RUN uv pip install -r requirements_dev.txt -r requirements.txt
+RUN uv pip install -r requirements_dev.txt -r requirements.txt -r services/requirements.txt
 
 ARG USERNAME=user
 ARG UID=1000

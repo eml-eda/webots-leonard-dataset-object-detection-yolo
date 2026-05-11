@@ -36,11 +36,11 @@ Robot {
   rotation 0 0 1 1.5708
   children [
     Camera {
-      translation 0 0 2.04
+      translation 0 0 1.9
       rotation 0 1 0 1.5708003061004252
       fieldOfView 1.204
-      width 1280
-      height 720
+      width 640
+      height 640
     }
   ]
   name "camera_robot"

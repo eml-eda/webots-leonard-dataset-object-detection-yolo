@@ -3,15 +3,16 @@ External YOLO inference service for robot controllers.
 Robots send images to this service, which returns detected object positions.
 """
 
+import base64
+import glob
+import logging
 import os
 import sys
-import glob
-import base64
-import logging
-from flask import Flask, request, jsonify
+
 import cv2
 import numpy as np
 import onnxruntime as ort
+from flask import Flask, jsonify, request
 
 # Add tristan-yolo-py-inference to path
 YOLO_DIR = os.path.join(os.path.dirname(__file__), "tristan-yolo-py-inference")
@@ -83,22 +84,30 @@ def predict(image_bgr, conf_thres=0.25, iou_thres=0.45):
     return out
 
 
-def get_class_center(detections, target_class):
-    """Get center coordinates of target class detection."""
+def get_class_center(detections, target_class, original_shape, input_shape):
     if detections is None or len(detections) == 0:
         return None, None, None
-    
     try:
         class_idx = CLASS_NAMES.index(target_class)
+        best_box = None
+        best_conf = -1
         for box in detections[0]:
             x1, y1, x2, y2, conf, pred_cls = box
-            if int(pred_cls) == class_idx:
-                center_x = (x1 + x2) / 2
-                center_y = (y1 + y2) / 2
-                return float(center_x), float(center_y), float(conf)
+            if int(pred_cls) == class_idx and conf > best_conf:
+                best_conf = conf
+                best_box = box
+        if best_box is not None:
+            x1, y1, x2, y2, conf, _ = best_box
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+            
+            # Scale to original image size
+            center_x_orig = center_x * original_shape[1] / input_shape[1]
+            center_y_orig = center_y * original_shape[0] / input_shape[0]
+            
+            return float(center_x_orig), float(center_y_orig), float(conf)
     except Exception as e:
         logger.error(f"Error getting class center: {e}")
-    
     return None, None, None
 
 
@@ -156,7 +165,8 @@ def detect():
         detections = predict(image_bgr, conf_thres, iou_thres)
 
         # Get target class center
-        center_x, center_y, confidence = get_class_center(detections, target_class)
+        input_shape = session.get_inputs()[0].shape[2:]
+        center_x, center_y, confidence = get_class_center(detections, target_class, image_bgr.shape, input_shape)
         logger.info(f"/detect: detection result for '{target_class}': x={center_x}, y={center_y}, conf={confidence}")
         
         # Format all detections for response
@@ -186,6 +196,55 @@ def detect():
         }
         
         logger.info("/detect: sending response to client")
+        
+        ### Save annotated image for debugging
+        try:
+            os.makedirs(os.path.join(os.path.dirname(__file__), "imgs"), exist_ok=True)
+            output_path = os.path.join(os.path.dirname(__file__), "imgs", "output.png")
+            annotated = image_bgr.copy()
+
+            if detections and len(detections) > 0:
+                # Find the target box with highest confidence
+                best_box = None
+                best_conf = -1
+                for box in detections[0]:
+                    x1, y1, x2, y2, conf, pred_cls = box
+                    if CLASS_NAMES[int(pred_cls)] == target_class and conf > best_conf:
+                        best_conf = conf
+                        best_box = box
+
+                if best_box is not None:
+                    x1, y1, x2, y2, conf, pred_cls = best_box
+                    
+                    input_shape = session.get_inputs()[0].shape[2:]
+                    x1_orig = int(x1 * annotated.shape[1] / input_shape[1])
+                    y1_orig = int(y1 * annotated.shape[0] / input_shape[0])
+                    x2_orig = int(x2 * annotated.shape[1] / input_shape[1])
+                    y2_orig = int(y2 * annotated.shape[0] / input_shape[0])
+
+                    print(f"Detected {CLASS_NAMES[int(pred_cls)]} with confidence {conf:.2f}"
+                          f" at ({x1_orig}, {y1_orig}), ({x2_orig}, {y2_orig})")
+
+                    cv2.rectangle(annotated, (x1_orig, y1_orig), (x2_orig, y2_orig), (0, 255, 0), 2)
+
+                    label = f"{target_class} {conf:.2f}"
+                    (tw, th), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                    cv2.rectangle(annotated, (x1_orig, y1_orig - th - baseline - 4),
+                                  (x1_orig + tw, y1_orig), (0, 255, 0), -1)
+                    cv2.putText(annotated, label, (x1_orig, y1_orig - baseline - 2),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+                if center_x is not None and center_y is not None:
+                    cv2.drawMarker(annotated, (int(center_x), int(center_y)), (0, 255, 0),
+                                   cv2.MARKER_CROSS, markerSize=16, thickness=2)
+
+            cv2.imwrite(output_path, annotated)
+            logger.info(f"Annotated image saved to {output_path}")
+
+        except Exception as e:
+            logger.warning(f"Failed to save annotated image: {e}")
+            
+        
         return jsonify(response), 200
         
     except Exception as e:
