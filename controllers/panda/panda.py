@@ -1,7 +1,8 @@
-from controller import Robot, Supervisor
-import math
 import json
+import math
 import os
+
+from controller import Robot, Supervisor
 
 TIME_STEP = 32
 
