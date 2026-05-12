@@ -1,0 +1,3 @@
+[submodule "controllers/panda/tristan-yolo-py-inference"]
+	path = controllers/panda/tristan-yolo-py-inference
+	url = git@github.com:eml-eda/tristan-yolo-py-inference.git
