@@ -1,6 +1,6 @@
 # Webots Leonard Dataset — Object Detection (YOLO)
 
-Webots simulation for generating object detection datasets. A Franka Emika Panda robot uses an onboard camera and YOLO inference to detect objects (Cookie box, Kuka box, Wooden box) on a table, then moves its arm to the detected target.
+Webots simulation for generating object detection datasets. A Franka Emika Panda robot uses a camera and YOLO inference to detect objects (Cookie box, Kuka box, Wooden box) on a table, then moves its arm to the detected target.
 
 Tested with **Python 3.10.20** and **Webots R2023b**.
 
@@ -8,7 +8,6 @@ Tested with **Python 3.10.20** and **Webots R2023b**.
 
 - [Webots R2023b](https://github.com/cyberbotics/webots/releases/tag/R2023b)
 - Python 3.10+
-- Git
 
 ## Setup
 
@@ -27,16 +26,15 @@ The project uses a git submodule for the TRISTAN YOLO ONNX inference library:
 git submodule update --init --recursive
 ```
 
-### 3. Install Python dependencies
+### 3. Create a virtual environment and install Python dependencies
+
+> [!WARNING]  
+> Code has been tested with python 3.10.20. It should work with other 3.10 versions, but may not be compatible with Python 3.11+ due to some dependencies.
 
 ```bash
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-```
-
-For development (linting, testing, type checking):
-
-```bash
-pip install -r requirements_dev.txt
 ```
 
 ### 4. Preparing the Neural Network Model
@@ -53,11 +51,16 @@ This reads `inputs/yolo_pruned_int.onnx`, reconnects dangling outputs, strips in
 
 ## Running
 
-Open one of the world files in Webots:
+> [!WARNING]  
+> Code has been tested with Webots R2023b. Compatibility with newer versions is not guaranteed.
 
-```bash
-webots worlds/leonardo-panda.wbt
+The next step is to launch the Webots simulation. Open the Webots application and go into settings and General. Here you should find a field called "Python command". Set this to the path of your virtual environment's python executable, for example:
+
 ```
+/home/user/webots-leonard-dataset-object-detection-yolo/venv/bin/python
+```
+
+Now you can open the Webots world file `worlds/leonardo-panda.wbt`. This will load the simulation environment.
 
 Then start the simulation (play button). The Panda controller will:
 
@@ -65,39 +68,3 @@ Then start the simulation (play button). The Panda controller will:
 2. Run YOLO inference (ONNX runtime, CPU) to detect objects
 3. Compute world coordinates of the target object
 4. Move the Panda arm to the detected position
-
-### World files
-
-| File | Description |
-|------|-------------|
-| `worlds/leonardo-panda.wbt` | Panda robot with camera, objects on a table |
-| `worlds/leonardo-dataset.wbt` | Dataset capture scene with camera and objects |
-
-## Project structure
-
-```
-controllers/
-  panda/                        # Main controller: camera capture + YOLO + arm movement
-    movement.py                 # Panda arm IK and movement (roboticstoolbox-python)
-    transformations.py          # Camera-to-world coordinate transforms
-    tristan-yolo-py-inference/  # Submodule: TRISTAN YOLO ONNX inference + post-processing
-  biscuit_box/                  # Random biscuit box placement
-  kuka_box/                     # Random kuka box placement
-  wooden_box/                   # Random wooden box placement
-  camera_viewable_area.py       # Camera FOV ground projection utility
-  check_overlap.py              # Polygon overlap detection
-  compute_corners.py            # Bounding box corner computation
-  generate_bbox.py              # Bounding box visualization
-meshes/                         # 3D mesh assets (Panda visual links)
-protos/                         # Custom Webots PROTO definitions
-weights/                        # Model weights
-worlds/                         # Webots simulation worlds
-```
-
-## Detection classes
-
-| Class | Object |
-|-------|--------|
-| `Cookie_box` | Biscuit box |
-| `Gray_block` | Gray block |
-| `Wooden_box` | Wooden box |
