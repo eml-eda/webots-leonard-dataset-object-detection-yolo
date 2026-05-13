@@ -21,11 +21,13 @@ ENV UV_COMPILE_BYTECODE=1 UV_SYSTEM_PYTHON=1
 
 # Install Webots runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \ 
+  build-essential \
   wget \
   xvfb \
   locales \
   python3 \
   python3-argcomplete \
+  python-dev-is-python3 \
   python3-pip && \
   rm /usr/lib/python*/EXTERNALLY-MANAGED && \
   wget https://raw.githubusercontent.com/cyberbotics/webots/master/scripts/install/linux_runtime_dependencies.sh && \
