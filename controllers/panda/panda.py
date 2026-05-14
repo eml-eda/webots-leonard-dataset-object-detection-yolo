@@ -17,14 +17,18 @@ from post_proc import (
     merge_output_int,
     qx_y_to_float_tensor,
 )
-
+from fpga_inference import predict_with_fpga, get_serial_connection, close_serial_connection
+from run_onnx_model import get_class_center_webots, plot_detections_webots
 TIME_STEP = 32
 MODEL_PATH = os.path.join(INFERENCE_DIR, "inputs", "yolo_pruned_int_fixed.onnx")
 ANCHORS_PATH = os.path.join(INFERENCE_DIR, "inputs", "anchors.npy")
 CLASS_NAMES = ["Cookie_box", "Gray_block", "Wooden_box"]
 
+__RUN_ON_ONNX_RUNTIME__ = True
 
 def capture_image(robot, save_path=None):
+
+
     print("Capturing image from camera...")
     camera = robot.getDevice("camera")
     if camera is None:
@@ -81,7 +85,7 @@ def get_class_center(detections, target_class):
     
     return None, None, None
 
-def predict(image_bgr, conf_thres=0.25, iou_thres=0.45):
+def predict(image_bgr, conf_thres=0.65, iou_thres=0.45):
     """Run YOLO inference on image."""
 
     session = session = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
@@ -108,35 +112,53 @@ def predict(image_bgr, conf_thres=0.25, iou_thres=0.45):
 
 def main():
     robot = Supervisor()
-    target_class = "Cookie_box"
+    panda_movement = PandaMovement(time_step=TIME_STEP, robot=robot)
+    panda_movement.init_arm_components()
+    panda_movement.rotate_back(time_limit=0)
+    target_class = "Gray_block"
     print("Starting Panda controller...")
+    # get serial conn
+    fpga_ser = None
+    if not __RUN_ON_ONNX_RUNTIME__:
+        fpga_ser = get_serial_connection()
     image_dir = os.path.join(os.path.dirname(__file__), "all_images")
     save_path = os.path.join(image_dir, "image_0.png")
     image_bgr, width, height = capture_image(robot, save_path=save_path)
     print("Image captured successfully.")
-    detections = predict(image_bgr)
-    print("YOLO inference completed.")
-    center_x, center_y, confidence = get_class_center(detections, target_class)
-    print(f"Detection result - Center: ({center_x}, {center_y}), Confidence: {confidence:.2f}")
+    if __RUN_ON_ONNX_RUNTIME__:
+        detections = predict(image_bgr)
+    else:
+        detections = predict_with_fpga(fpga_ser, image_bgr)
+    print("YOLO inference completed")
+    center_x, center_y, confidence = get_class_center_webots(detections, target_class)
+    target_not_found = confidence is None
+    if target_not_found:
+        print(f"Target class {target_class} was not found")
+    else:
+        print(f"Detection result - Center: ({center_x}, {center_y}), Confidence: {confidence:.2f}")
 
-    center_x = center_x * (640 / 128) / 640
-    center_y = center_y * (360 / 128) / 360
-    print(f"Relative coordinates: ({center_x:.4f}, {center_y:.4f})")
+    plot_detections_webots(image_bgr, detections, center_x, center_y, (128, 128), "detections_from_webots.jpg", target_found=not target_not_found)
+    if not target_not_found:
+        center_x = center_x * (640 / 128) / 640
+        center_y = center_y * (360 / 128) / 360
+        print(f"Relative coordinates: ({center_x:.4f}, {center_y:.4f})")
 
-    viewable_area = calculate_viewable_area(1.3, 69, 42)
-    print("Viewable area corners (relative to camera): ", viewable_area)
-    points_world = compute_points_world_from_relative(
-        viewable_area, [[center_x, center_y, 0.76]]
-    )[0]
-    print(
-        f"World coordinates of detected object: ({points_world[0]:.4f}, {points_world[1]:.4f}, {points_world[2]:.4f})"
-    )
+        viewable_area = calculate_viewable_area(1.3, 69, 42)
+        print("Viewable area corners (relative to camera): ", viewable_area)
+        points_world = compute_points_world_from_relative(
+            viewable_area, [[center_x, center_y, 0.76]]
+        )[0]
+        print(
+            f"World coordinates of detected object: ({points_world[0]:.4f}, {points_world[1]:.4f}, {points_world[2]:.4f})"
+        )
+        points_world[0] = -points_world[0] + 0.05
+        points_world[2] = 0.86
+        # Initialize Panda movement controller
+        panda_movement.move_arm(final_position=points_world, time_limit=0)
+        points_world[2] = 0.86
 
-    points_world[2] = 0.86
-    # Initialize Panda movement controller
-    panda_movement = PandaMovement(time_step=TIME_STEP, robot=robot)
-    panda_movement.init_arm_components()
-    panda_movement.move_arm(final_position=points_world, time_limit=0)
-
+    # close serial conn
+    if not __RUN_ON_ONNX_RUNTIME__:
+        close_serial_connection(fpga_ser)
 if __name__ == "__main__":
     main()

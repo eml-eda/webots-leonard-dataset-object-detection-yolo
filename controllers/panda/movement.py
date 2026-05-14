@@ -53,6 +53,15 @@ class PandaMovement:
         """ Print a log message in the console if the debug mode is enabled. """
         print(f"[PANDA] {message}")
 
+    # Move the arm to the given position
+    def rotate_back(self, time_limit):
+
+        # Set the positions
+        self.motors[0].setPosition(2.88)
+
+        # Perform the movement until it is finished
+        while (self.is_position_reached(self.motors[0], 2.88) == False):
+            self.robot.step(self.time_step)
 
     # Move the arm to the given position
     def move_arm(self, final_position, time_limit):

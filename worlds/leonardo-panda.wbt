@@ -12,13 +12,14 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/project
 WorldInfo {
 }
 Viewpoint {
-  orientation 0.17237771793387466 0.16331489907023444 -0.9713980471987727 1.6537279302701149
-  position -0.32093505456519933 4.867404694527449 2.3321273778119083
+  orientation 0.141565274463351 0.21970442961340025 -0.9652405071661501 1.1772247715985005
+  position -1.9762255014472998 3.353356420075564 1.8790353255055157
   follow "table"
 }
 TexturedBackground {
 }
 TexturedBackgroundLight {
+  castShadows FALSE
 }
 Floor {
   appearance Parquetry {
@@ -26,10 +27,10 @@ Floor {
   }
 }
 DEF PANDA Robot {
-  translation -0.38809 -0.0366595 0.74
+  translation -0.528809 -0.0366595 0.74
   children [
     Camera {
-      translation 0.428 0.0366595 1.3
+      translation 0.568 0.0366595 1.3
       rotation 0 1 0 1.5708
       children [
         WoodenBox {
@@ -92,7 +93,7 @@ DEF PANDA Robot {
               }
             ]
             endPoint Solid {
-              rotation -0.9999999954979486 6.709733940528403e-05 6.70973174782979e-05 1.5707960045020497
+              rotation -0.9999999954979486 6.709733940522516e-05 6.70973174783175e-05 1.5707960045020497
               children [
                 DEF link2_visual CadShape {
                   url [
@@ -119,7 +120,7 @@ DEF PANDA Robot {
                   ]
                   endPoint Solid {
                     translation 0 -0.316 0
-                    rotation 0.999999997947976 -4.529928063093935e-05 4.529926582736833e-05 1.5707960020520304
+                    rotation 0.999999997947976 -4.529928063099824e-05 4.5299265827368345e-05 1.5707960020520304
                     children [
                       DEF link3_visual CadShape {
                         url [
@@ -146,7 +147,7 @@ DEF PANDA Robot {
                         ]
                         endPoint Solid {
                           translation 0.0825 0 0
-                          rotation 0.5773098896664153 0.5773704578940627 -0.5773704578903841 2.094455570340665
+                          rotation 0.5773098896664154 0.5773704578940626 -0.577370457890384 2.094455570340665
                           children [
                             DEF link4_visual CadShape {
                               url [
@@ -173,7 +174,7 @@ DEF PANDA Robot {
                               ]
                               endPoint Solid {
                                 translation -0.0825 0.384 0
-                                rotation -0.9999999999996277 6.101611681345208e-07 6.101609685799865e-07 1.5707960000003693
+                                rotation -0.9999999999996277 6.101611681541475e-07 6.101609685996128e-07 1.5707960000003682
                                 children [
                                   DEF link5_visual CadShape {
                                     url [
@@ -198,7 +199,7 @@ DEF PANDA Robot {
                                       }
                                     ]
                                     endPoint Solid {
-                                      rotation 0.9999999999907713 -3.0378668489594298e-06 3.037866765756231e-06 1.5707960000097094
+                                      rotation 0.9999999999907713 -3.0378668488809255e-06 3.037866765756231e-06 1.5707960000097094
                                       children [
                                         DEF link6_visual CadShape {
                                           url [
@@ -225,7 +226,7 @@ DEF PANDA Robot {
                                           ]
                                           endPoint Solid {
                                             translation 0.088 0 0
-                                            rotation 0.9999999999981174 1.372032738447878e-06 -1.3720322902316616e-06 1.5707960000018815
+                                            rotation 0.9999999999981174 1.3720327385263815e-06 -1.3720322902316616e-06 1.570796000001882
                                             children [
                                               DEF link7_visual CadShape {
                                                 url [
@@ -619,11 +620,12 @@ DEF PANDA Robot {
   supervisor TRUE
 }
 Table {
+  translation -0.14 0 0
   rotation 0 0 1 1.5708
-  size 1.6 0.8 0.74
+  size 1.6 1.1 0.74
 }
 Robot {
-  translation 0.139797 -0.452495 0.77
+  translation -0.230203 -0.452495 0.77
   children [
     GPS {
     }
@@ -636,7 +638,7 @@ Robot {
   supervisor TRUE
 }
 Robot {
-  translation 0.024328 0.495274 0.74
+  translation -0.245672 0.185274 0.74
   children [
     BiscuitBox {
       translation -2.42861286636753e-16 -1.1102230246251565e-16 -8.789446119483735e-06
@@ -649,7 +651,7 @@ Robot {
   supervisor TRUE
 }
 Robot {
-  translation -0.212944 -0.532102 0.77
+  translation 0.017056 -0.142102 0.77
   children [
     KukaBox {
       translation 0.00022452132197797736 -0.00015754958647840045 0.005244572440268103
