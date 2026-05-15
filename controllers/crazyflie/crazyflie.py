@@ -14,17 +14,16 @@
 """crazyflie_controller_py controller."""
 
 
+import base64
+import json
 import os
 import sys
-import json
-import base64
 import threading
-import urllib.error
-import urllib.request
 from math import atan, cos, sin, tan
 
 import cv2
 import numpy as np
+import onnxruntime as ort
 from controller import (
     GPS,
     Camera,
@@ -38,11 +37,21 @@ from controller import (
 )
 
 controller_dir = os.path.dirname(os.path.abspath(__file__))
+INFERENCE_DIR = os.path.join(controller_dir, "../../services/tristan-yolo-py-inference")
 shared_python_path = os.path.normpath(
     os.path.join(controller_dir, '..', '..', 'controllers_shared', 'python_based')
 )
+sys.path.insert(0, INFERENCE_DIR)
 if shared_python_path not in sys.path:
     sys.path.insert(0, shared_python_path)
+
+
+from post_proc import (
+    fixed_point_nms,
+    float_to_qx_y_tensor,
+    merge_output_int,
+    qx_y_to_float_tensor,
+)
 
 try:
     from pid_controller import pid_velocity_fixed_height_controller
@@ -54,118 +63,52 @@ except ModuleNotFoundError:
     raise
 
 FLYING_ATTITUDE = 1
-DETECTION_URL = os.getenv('CF_DETECTION_URL', 'http://127.0.0.1:8765/detect')
-DETECTION_INPUT_SIZE = max(8, int(os.getenv('CF_DETECTION_INPUT_SIZE', '128')))
-DETECTION_TIMEOUT_S = max(0.01, float(os.getenv('CF_DETECTION_TIMEOUT_S', '0.25')))
-DETECTION_RETRY_S = max(0.05, float(os.getenv('CF_DETECTION_RETRY_S', '0.5')))
 CAMERA_PERIOD_MS = 200
 OPEN_LOOP_YAW_RATE = max(0.05, float(os.getenv('CF_OPEN_LOOP_YAW_RATE', '0.6')))
 MAX_OPEN_LOOP_YAW_DELTA = max(0.05, float(os.getenv('CF_MAX_OPEN_LOOP_YAW_DELTA', '1.2')))
 YAW_STOP_TOLERANCE = max(0.001, float(os.getenv('CF_YAW_STOP_TOLERANCE', '0.01')))
 
-def _scale_detections(detections, src_width, src_height, dst_width, dst_height):
-    scale_x = dst_width / max(src_width, 1)
-    scale_y = dst_height / max(src_height, 1)
-    scaled = []
-    for det in detections:
-        scaled.append({
-            'x1': int(det['x1'] * scale_x),
-            'y1': int(det['y1'] * scale_y),
-            'x2': int(det['x2'] * scale_x),
-            'y2': int(det['y2'] * scale_y),
-            'conf': float(det.get('conf', 0.0)),
-            'cls': int(det.get('cls', -1)),
-            'label': str(det.get('label', 'object')),
-        })
-    return scaled
+MODEL_PATH = os.path.join(INFERENCE_DIR, "inputs_cf", "yolo_pruned_int_fixed.onnx")
+ANCHORS_PATH = os.path.join(INFERENCE_DIR, "inputs_cf", "anchors.npy")
+CLASS_NAMES = ["pedestrian"]
+
+def preprocess_image(image_bgr, input_hw):
+    """Preprocess image for YOLO model."""
+    resized = cv2.resize(image_bgr, input_hw, interpolation=cv2.INTER_LINEAR)
+    image_rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+    image_chw = image_rgb.transpose(2, 0, 1)
+    image_chw = np.expand_dims(image_chw, axis=0)
+    image_input = np.ascontiguousarray(image_chw, dtype=np.float32)
+    return image_input
+
+def predict(image_bgr, conf_thres=0.25, iou_thres=0.45):
+    """Run YOLO inference on image."""
+
+    session = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
+    if session is None:
+        raise RuntimeError("YOLO model not initialized")
+
+    anchor_grid = np.load(ANCHORS_PATH)
+    if anchor_grid is None:
+        raise RuntimeError("Failed to load anchors")
+
+    input_name = session.get_inputs()[0].name
+    output_names = [_.name for _ in session.get_outputs()]
+    input_shape = session.get_inputs()[0].shape
+
+    image = preprocess_image(image_bgr, input_shape[2:])
+    raw_output = session.run(output_names, {input_name: image})
+    x_fixed = [float_to_qx_y_tensor(t, 4, 12) for t in raw_output]
+    out = merge_output_int(x_fixed, anchor_grid)
+    out = fixed_point_nms(out, conf_thres, iou_thres)
+    out = [qx_y_to_float_tensor(t.astype(np.int32), 14, 15) for t in out]
+    return out
 
 
 def _wrap_angle(angle):
     """Wrap an angle in radians to [-pi, pi]."""
     return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
-
-def detect_objects_remote(image, frame_id):
-    """Send a single RGB frame to a remote service and receive detections."""
-    resized_bgr = cv2.resize(image, (DETECTION_INPUT_SIZE, DETECTION_INPUT_SIZE))
-    resized_rgb = cv2.cvtColor(resized_bgr, cv2.COLOR_BGR2RGB)
-
-    payload = {
-        'frame_id': frame_id,
-        'encoding': 'raw_rgb24',
-        'width': DETECTION_INPUT_SIZE,
-        'height': DETECTION_INPUT_SIZE,
-        'channels': 3,
-        'image_b64': base64.b64encode(resized_rgb.tobytes()).decode('ascii'),
-    }
-    request_data = json.dumps(payload).encode('utf-8')
-    request = urllib.request.Request(
-        DETECTION_URL,
-        data=request_data,
-        headers={'Content-Type': 'application/json'},
-        method='POST',
-    )
-
-    with urllib.request.urlopen(request, timeout=DETECTION_TIMEOUT_S) as response:
-        response_payload = json.loads(response.read().decode('utf-8'))
-
-    detections = response_payload.get('detections', [])
-    width = int(response_payload.get('image_width', DETECTION_INPUT_SIZE))
-    height = int(response_payload.get('image_height', DETECTION_INPUT_SIZE))
-    return detections, width, height
-
-
-class RemoteDetectionClient:
-    """Background HTTP client so controller loop is never blocked by network calls."""
-
-    def __init__(self):
-        self._lock = threading.Lock()
-        self._request_in_flight = False
-        self._pending_result = None
-        self._last_error = None
-
-    def _worker(self, image_bgr, frame_id):
-        try:
-            detections, width, height = detect_objects_remote(image_bgr, frame_id)
-            with self._lock:
-                self._pending_result = (detections, width, height)
-                self._last_error = None
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError, ValueError) as exc:
-            with self._lock:
-                self._last_error = str(exc)
-        finally:
-            with self._lock:
-                self._request_in_flight = False
-
-    def submit(self, image_bgr, frame_id):
-        with self._lock:
-            if self._request_in_flight:
-                return False
-            self._request_in_flight = True
-
-        worker = threading.Thread(
-            target=self._worker,
-            args=(image_bgr.copy(), frame_id),
-            daemon=True,
-        )
-        worker.start()
-        return True
-
-    def pop_result(self):
-        with self._lock:
-            result = self._pending_result
-            self._pending_result = None
-            return result
-
-    def pop_error(self):
-        with self._lock:
-            error = self._last_error
-            self._last_error = None
-            return error
-
-    def in_flight(self):
-        with self._lock:
-            return self._request_in_flight
 
 if __name__ == '__main__':
 
@@ -188,8 +131,6 @@ if __name__ == '__main__':
     planned_yaw_delta = None
     yaw_target = None
     one_shot_completed = False
-    remote_client = RemoteDetectionClient()
-    next_remote_retry_time = 0.0
 
     ## Initialize motors
     m1_motor = robot.getDevice("m1_motor")
@@ -259,17 +200,7 @@ if __name__ == '__main__':
     print("- Use Q and E to rotate around yaw ")
     print("- Use W and S to go up and down\n ")
 
-    print("\n====== Crazyflie Drone with Externalizable YOLO Detection ======\n")
-    print("[crazyflie] Detection backend: remote")
-    print("[crazyflie] Effective config:")
-    print(f"  CF_DETECTION_URL={DETECTION_URL}")
-    print(f"  CF_DETECTION_INPUT_SIZE={DETECTION_INPUT_SIZE}")
-    print(f"  CF_DETECTION_TIMEOUT_S={DETECTION_TIMEOUT_S:.3f}")
-    print(f"  CF_DETECTION_RETRY_S={DETECTION_RETRY_S:.3f}")
-    print(f"  CF_CAMERA_PERIOD_MS={camera_period_ms}")
-    print(f"  CF_OPEN_LOOP_YAW_RATE={OPEN_LOOP_YAW_RATE:.3f}")
-    print(f"  CF_MAX_OPEN_LOOP_YAW_DELTA={MAX_OPEN_LOOP_YAW_DELTA:.3f}")
-    print(f"  CF_YAW_STOP_TOLERANCE={YAW_STOP_TOLERANCE:.4f}")
+    print("\n====== Crazyflie Drone with Local YOLO Detection ======\n")
     
     # Main loop:
     while robot.step(timestep) != -1:
@@ -317,48 +248,40 @@ if __name__ == '__main__':
             image = np.frombuffer(raw_image, dtype=np.uint8).reshape((camera_height, camera_width, 4))
             image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)  # Convert Webots image format to OpenCV BGR
 
-            if (
-                not one_shot_completed
-                and planned_yaw_delta is None
-                and current_time >= next_remote_retry_time
-            ):
-                submitted = remote_client.submit(image, image_index)
-                if submitted:
-                    next_remote_retry_time = current_time + DETECTION_RETRY_S
-                    image_index += 1
-
-            remote_error = remote_client.pop_error()
-            if remote_error:
-                print(f"[crazyflie] remote detection failed: {remote_error}")
-
-            remote_result = remote_client.pop_result()
-            if remote_result is not None:
-                detections, infer_width, infer_height = remote_result
-                scaled = _scale_detections(
-                    detections,
-                    infer_width,
-                    infer_height,
-                    camera_width,
-                    camera_height,
-                )
-                if scaled:
-                    fixed_target_detection = scaled[0]
-                    bbox_center_x = (fixed_target_detection['x1'] + fixed_target_detection['x2']) / 2.0
+            if not one_shot_completed and planned_yaw_delta is None:
+                detections = predict(image)
+                if detections and len(detections[0]) > 0:
+                    # Get the first detection
+                    box = detections[0][0]
+                    x1, y1, x2, y2, conf, pred_cls = box
+                    
+                    # Scale detection from model input size to camera size
+                    # The model output is relative to its input size (e.g., 128x128)
+                    # We need to find the original bbox center in the camera frame.
+                    session = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
+                    input_shape = session.get_inputs()[0].shape
+                    model_input_w = input_shape[3]
+                    
+                    bbox_center_x_model = (x1 + x2) / 2.0
+                    
+                    # Convert model-space coordinate to camera-space coordinate
+                    bbox_center_x_camera = (bbox_center_x_model / model_input_w) * camera_width
+                    
                     image_center_x = camera_width / 2.0
+                    
                     # Positive angle means rotate left, negative means rotate right.
-                    planned_yaw_delta = atan((image_center_x - bbox_center_x) / max(focal_length_px, 1e-6))
+                    planned_yaw_delta = atan((image_center_x - bbox_center_x_camera) / max(focal_length_px, 1e-6))
+                    
                     if planned_yaw_delta > MAX_OPEN_LOOP_YAW_DELTA:
                         planned_yaw_delta = MAX_OPEN_LOOP_YAW_DELTA
                     elif planned_yaw_delta < -MAX_OPEN_LOOP_YAW_DELTA:
                         planned_yaw_delta = -MAX_OPEN_LOOP_YAW_DELTA
+                        
                     yaw_target = _wrap_angle(yaw + planned_yaw_delta)
                     print(
                         f"[crazyflie] Planned single-shot yaw delta: {planned_yaw_delta:.3f} rad "
                         f"({planned_yaw_delta * 180.0 / np.pi:.1f} deg)"
                     )
-                elif planned_yaw_delta is None:
-                    # Keep retrying if no box has ever been received yet.
-                    next_remote_retry_time = current_time + DETECTION_RETRY_S
 
             # Execute the pre-planned single-shot yaw in open loop.
             if yaw_target is not None:
@@ -376,7 +299,6 @@ if __name__ == '__main__':
                     desired_yaw_rate_cmd = 0.0
                     yaw_target = None
                     planned_yaw_delta = 0.0
-                    fixed_target_detection = None
                     one_shot_completed = True
                     print('[crazyflie] Open-loop yaw plan completed.')
             else:
